@@ -1,0 +1,59 @@
+
+key_files:
+  abe: ./abe_file
+  de: ./de_file
+  ore: ./ore_file
+
+
+api:
+  username: test_user1
+  token: ksyhfkjlashlkfjahsfa
+
+policy:
+
+  #default, required , this specifies defaault encryption policy
+  default:
+    de_encrypt: False # optional, default false
+    ore_encrypt: False # optional, default false
+    # The default ABE policy is required
+    abe_pol: "default"
+
+  index:
+    exact:
+         match: "ipv4"
+
+    regex:
+         match: "^ipv\d$"
+
+    default_match:
+      type: "regex"
+      match: # Required"^.*mac.*$"
+
+  timestamp: # optional but required for time range queries
+    # timestamp is  automatically encrypted using ORE
+    field_name: "time"
+    # ABE policy for time, aside from ORE
+    # if specified will not use default policy, alternatively specify as if field
+    abe_pol: "SecOps OR IT"
+
+
+  exact:
+    - match: "hours"
+      de_encrypt: True
+      ore_encrypt: False
+      abe_pol: "somerthign and something"
+
+      
+    - match: "frequency"
+      de_encrypt: False
+      ore_encrypt: True
+      abe_pol: "somerthign and something"
+
+
+  regex:
+    - match: "^something.*$"
+      abe_pol: "somerthign and something"
+
+    - match: "^something_else.*$"
+      ore_encrypt: True
+      abe_pol: "somerthign and something"
