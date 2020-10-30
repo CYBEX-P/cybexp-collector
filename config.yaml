@@ -20,14 +20,14 @@ policy:
 
   index:
     exact:
-         match: "ipv4"
+      - match: "ipv4"
 
     regex:
-         match: "^ipv\d$"
+      - match: ^ipv\d$
 
     default_match:
       type: "regex"
-      match: # Required"^.*mac.*$"
+      match: "^.*mac.*$" # Required
 
   timestamp: # optional but required for time range queries
     # timestamp is  automatically encrypted using ORE
