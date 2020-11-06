@@ -1,6 +1,6 @@
 
 key_files:
-  abe: ./abe_file
+  abe: /secrets./abe_file
   de: ./de_file
   ore: ./ore_file
 
@@ -13,47 +13,60 @@ policy:
 
   #default, required , this specifies defaault encryption policy
   default:
-    de_encrypt: False # optional, default false
-    ore_encrypt: False # optional, default false
+    # de_encrypt: False # optional, default false
+    # ore_encrypt: False # optional, default false
     # The default ABE policy is required
     abe_pol: "default"
 
   index:
+    full_index_overwrite: False # dont use any of the hardcoded indexes
+
     exact:
       - match: "ipv4"
 
     regex:
-      - match: ^ipv\d$
+      - match: .*src.*
 
-    default_match:
-      type: "regex"
-      match: "^.*mac.*$" # Required
+
 
   timestamp: # optional but required for time range queries
-    # timestamp is  automatically encrypted using ORE
-    field_name: "time"
-    # ABE policy for time, aside from ORE
-    # if specified will not use default policy, alternatively specify as if field
-    abe_pol: "SecOps OR IT"
+    # timestamp is automatically encrypted using ORE
+    # if any other encryption is desired, use the exact/regex matching mechanisms below
+    # else they will also be encrypted using default
+    exact:
+        - "time"
+        - "timestamp"
+
+    regex:
+        - ".*time.*"
+        - ".*timestamp.*"
+
 
 
   exact:
+    - match: "time"
+      de_encrypt: True
+      abe_pol: "somerthign and something"
+
+    - match: "frequency"
+      remove: True
+
     - match: "hours"
       de_encrypt: True
-      ore_encrypt: False
       abe_pol: "somerthign and something"
 
       
-    - match: "frequency"
+    - match: "frequency2"
       de_encrypt: False
-      ore_encrypt: True
       abe_pol: "somerthign and something"
 
 
   regex:
-    - match: "^something.*$"
+    - match: ".*time.*"
       abe_pol: "somerthign and something"
 
-    - match: "^something_else.*$"
-      ore_encrypt: True
+    - match: ".*timestamp.*"
       abe_pol: "somerthign and something"
+    
+    - match: ".*something.*"
+      remove: True
