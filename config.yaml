@@ -13,8 +13,7 @@ policy:
 
   #default, required , this specifies defaault encryption policy
   default:
-    # de_encrypt: False # optional, default false
-    # ore_encrypt: False # optional, default false
+    de_encrypt: False # optional, default false
     # The default ABE policy is required
     abe_pol: "default"
 

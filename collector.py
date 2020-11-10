@@ -257,9 +257,41 @@ def regex_match(enc_record:dict, record_keys:list, record:dict, enc_policy):
 
 def default_match(enc_record:dict, record_keys:list, record:dict, enc_policy):
    # if we can not enc using deff policy for any field in record_keys return false, sefety measure
-   numb_matched = 0
-   return True, numb_matched
-   return False, numb_matched
+
+      new_record_keys = set(record_keys) # create new object and dont change original YET
+
+   try:
+    
+      abe_pol = enc_policy["abe_pol"]
+      want_de = _to_bool(enc_policy["de_encrypt"])
+
+      for k in record_keys:
+         try:
+            dat = record[k]
+
+            if want_de:
+               de_k = "de_"+k
+               enc_dat_de = encrypt_as_de(dat)
+               enc_record[de_k] = enc_dat_de
+               new_record_keys.discard(k)
+
+            if "abe_pol" in m:
+               abe_k = "cpabe_"+k
+               enc_dat_abe = encrypt_as_cpabe(dat,m["abe_pol"])
+               enc_record[abe_k] = enc_dat_abe
+               new_record_keys.discard(k)
+         except:
+            continue
+   except:
+      # traceback.print_exc()
+      return False
+
+
+   record_keys.clear()
+   record_keys.extend(new_record_keys)
+
+   return True
+
 
 def post_record(enc_record:dict):
    print('#'*50)
@@ -302,7 +334,7 @@ if __name__ == "__main__":
 
       succ = create_indexes(enc_record, record_keys, record, config_collector['policy']['index'])
       if not succ:
-         # print("skiping no index created")
+         # print("skiping, no index created")
          continue
       
 
@@ -312,13 +344,11 @@ if __name__ == "__main__":
 
       regex_match(enc_record, record_keys, record, config_collector['policy']['regex'])
 
-      succ, numb_matched_def = default_match(enc_record, record_keys, record, config_collector['policy']['default'])
-      if not succ:
-         print("skipping")
-         continue
+      default_match(enc_record, record_keys, record, config_collector['policy']['default'])
 
 
-      # post_succ = post_record(enc_record)
+
+      post_succ = post_record(enc_record)
   
 
 
