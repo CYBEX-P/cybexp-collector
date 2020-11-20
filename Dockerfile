@@ -7,7 +7,11 @@ RUN pip3 install -r /collector/requirements.txt
 # misc
 RUN mkdir -p /secrets
 
-# copy collector last
+COPY ./tahoe-honeypot.jsonl /collector/tahoe-honeypot.jsonl
+
+# copy collector,config last
 COPY ./collector /collector
+COPY ./config.yaml /collector/config.yaml
+
 
 WORKDIR /collector
