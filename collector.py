@@ -2,6 +2,9 @@
 
 import sys
 sys.path.append("/priv-libs/libs")
+from de import RSADOAEP
+from ORE import *
+from cpabew import CPABEAlg
 
 import jsonlines
 from tqdm import tqdm
@@ -10,6 +13,8 @@ import re
 
 from pprint import pprint
 import traceback
+
+DEBUG_POLICY_PARCER = False
 
 def _to_bool(st):
    trues = ["t","true", "True"]
@@ -48,12 +53,41 @@ def match_re_to_keys(reg:str, keys:list):
    return newlist
 
 
-def encrypt_as_de(dat):
-   return "DE_encrypted"
-def encrypt_as_timestamp(dat):
-   return "ORE_encrypted"
-def encrypt_as_cpabe(dat, policy);
-   return "CPABE_encrypted_{}".format(policy.replace(' ',"_"))
+def encrypt_as_de(dat,key):
+   global DEBUG_POLICY_PARCER
+   if DEBUG_POLICY_PARCER:
+      return "DE_encrypted"
+   else:
+      try:
+         RSADOAEP(key_sz_bits=2048, rsa_pem=key)
+         return enc_alg.encrypt(dat)
+      except:
+         traceback.print_exc()
+         return None
+def encrypt_as_timestamp(dat,key):
+   global DEBUG_POLICY_PARCER
+   if DEBUG_POLICY_PARCER:
+      return "ORE_encrypted"
+   else:
+      try:
+         if type(dat) == int and dat > 0:
+            return OREComparable.from_int(dat,key).get_cipher_obj().export()
+         else:
+            return None
+      except:
+         traceback.print_exc()
+         return None
+def encrypt_as_cpabe(dat, policy, key);
+   global DEBUG_POLICY_PARCER
+   if DEBUG_POLICY_PARCER:
+      return "CPABE_encrypted_{}".format(policy.replace(' ',"_"))
+   else:
+      try:
+         bsw07 = CPABEAlg()
+         return bsw07.cpabe_encrypt_serialize(key, str(dat).encode("UTF-8"), policy) 
+      except:
+         traceback.print_exc()
+         return None
 
 def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy):
    # pprint(enc_policy)
