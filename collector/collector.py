@@ -33,12 +33,13 @@ def _to_bool(st):
    except:
       return False
 
-def _str_to_epoch(some_time_str):
+def _str_to_epoch(some_time_str, debug=False):
    # parse dates without knwoing format
    # https://stackoverflow.com/a/30468539/12044480
    t = parser.parse(some_time_str)
    unix = t.timestamp()
-   print("Time:", t, "unix:",unix)
+   if debug:
+      print("Time:", t, "unix:",unix)
    return int(unix)
 
 def load_yaml_file(f_name):
@@ -56,13 +57,13 @@ def load_json_file(f_name):
    return dat
 
 
-def match_re_to_keys(reg: str, keys: list):
+def match_re_to_keys(reg: str, keys: list, debug=False):
    r = re.compile(reg)
    newlist = list(filter(r.match, keys))
-   # if len(newlist) > 0:
-   #    print("reg: {}".format(repr(reg)))
-   #    print("OG keys: {}".format(keys))
-   #    print("matched keys [{}]: {}".format(repr(reg),newlist))
+   if debug and len(newlist) > 0:
+      print("reg: {}".format(repr(reg)))
+      print("OG keys: {}".format(keys))
+      print("matched keys [{}]: {}".format(repr(reg),newlist))
    return newlist
 
 
@@ -80,7 +81,7 @@ def encrypt_as_de(dat,key):
       except:
          traceback.print_exc()
          return None
-def encrypt_as_timestamp(dat,key):
+def encrypt_as_timestamp(dat,key, debug=False):
    global DEBUG_POLICY_PARCER
    if DEBUG_POLICY_PARCER:
       return "ORE_encrypted"
@@ -94,7 +95,8 @@ def encrypt_as_timestamp(dat,key):
       except KeyboardInterrupt:
          raise KeyboardInterrupt
       except:
-         traceback.print_exc()
+         if debug:
+            traceback.print_exc()
          return None
 def encrypt_as_cpabe(dat, policy, pk):
    global DEBUG_POLICY_PARCER
@@ -162,7 +164,7 @@ def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, k
                      index_created = index_created or True
                   except KeyboardInterrupt:
                      raise KeyboardInterrupt
-                  except:
+                  except (NameError,AttributeError,KeyError):
                      enc_record["index"] = list()
                      enc_record["index"].append(enc_dat)
                      record_keys.discard(k)
@@ -170,6 +172,7 @@ def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, k
                except KeyboardInterrupt:
                   raise KeyboardInterrupt
                except:
+                  traceback.print_exc()
                   continue
          except KeyboardInterrupt:
             raise KeyboardInterrupt
@@ -198,12 +201,14 @@ def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, 
             k = m
             dat = record[k]
             enc_dat = encrypt_as_timestamp(dat, key)
+            if not enc_dat:
+               continue
             try:
                enc_record["timestamp"].append(enc_dat)
                record_keys.discard(k)
             except KeyboardInterrupt:
                raise KeyboardInterrupt
-            except :
+            except (NameError,AttributeError,KeyError):
                enc_record["timestamp"] = list()
                enc_record["timestamp"].append(enc_dat)
                record_keys.discard(k)
@@ -229,6 +234,8 @@ def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, 
                try:
                   dat = record[k]
                   enc_dat = encrypt_as_timestamp(dat, key)
+                  if not enc_dat:
+                     continue
                   try:
                      enc_record["timestamp"].append(enc_dat)
                      record_keys.discard(k)
@@ -510,7 +517,7 @@ def get_all_keys(kms_url, name, DE_key_location, ORE_key_location, cpabe_pk_loca
    de = load_fetch_de_key(kms_url,DE_key_location)
    ore = load_fetch_ore_key(kms_url,ORE_key_location)
    abe_pk = load_fetch_cpabe_pk(kms_url,cpabe_pk_location)
-   abe_sk = load_fetch_cpabe_sk(kms_url,name, cpabe_sk_location)
+   # abe_sk = load_fetch_cpabe_sk(kms_url,name, cpabe_sk_location)
 
    return {
             "de": de,
@@ -559,7 +566,7 @@ if __name__ == "__main__":
    honeypot_testdata = load_json_file(data_f_name)
 
    if DEBUG:
-      print("#"*21 +" config "*21)
+      print("#"*21 +" config " + "#"*21)
       pprint(config_collector)
       print("#"*50)
 
@@ -577,7 +584,9 @@ if __name__ == "__main__":
 
       succ = create_indexes(enc_record, record_keys, record, config_collector['policy']['index'], keychain["de"])
       if not succ:
-         # print("skiping, no index created")
+         print("skiping, no index created")
+         if ONLY_ONE:
+            break
          continue
       
       if DEBUG:
@@ -616,13 +625,13 @@ if __name__ == "__main__":
       if ONLY_ONE:
          break
 
-
+      print(".", end="", flush=True)
+   print(flush=True)
    # pprint(master_key_set)
 
 
 
 
 # todo 
-# todo _str_to_epoch
 # support missing values in policy parcer
 # if get attribuets, then only fetch valid attributes and display them to user
