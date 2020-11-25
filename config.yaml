@@ -1,6 +1,7 @@
 debug: 
   enabled: False
   process_only_one: False
+  show_enc_policy: False
   
 kms:
   url: "http://192.168.1.101:5002"
@@ -58,27 +59,27 @@ policy:
   exact:
     - match: "time"
       de_encrypt: True
-      abe_pol: "somerthign and something"
+      abe_pol: "itops AND research"
 
     - match: "frequency"
       remove: True
 
     - match: "hours"
       de_encrypt: True
-      abe_pol: "somerthign and something"
+      abe_pol: "itops AND research"
 
       
     - match: "frequency2"
       de_encrypt: False
-      abe_pol: "somerthign and something"
+      abe_pol: "itops AND research"
 
 
   regex:
     - match: ".*time.*"
-      abe_pol: "somerthign and something"
+      abe_pol: "itops AND research"
 
     - match: ".*timestamp.*"
-      abe_pol: "somerthign and something"
+      abe_pol: "itops AND research"
     
     - match: ".*something.*"
       remove: True

@@ -13,6 +13,7 @@ import yaml
 import re
 from dateutil import parser
 from datetime import datetime
+import pickle 
 
 from pprint import pprint
 import traceback
@@ -105,14 +106,16 @@ def encrypt_as_cpabe(dat, policy, pk):
    else:
       try:
          bsw07 = CPABEAlg()
-         return bsw07.cpabe_encrypt_serialize(pk, str(dat).encode("UTF-8"), policy)
+         # data_to_enc = str(dat).encode("UTF-8")
+         data_to_enc = pickle.dumps(dat)
+         return bsw07.cpabe_encrypt_serialize(pk, data_to_enc, policy)
       except KeyboardInterrupt:
          raise KeyboardInterrupt
       except:
          traceback.print_exc()
          return None
 
-def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, key):
+def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, key, debug=False):
    # pprint(enc_policy)
    index_created = False
 
@@ -125,6 +128,8 @@ def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, k
             k = m["match"]
             dat = record[k]
             enc_dat = encrypt_as_de(dat, key)
+            if debug:
+               print("{}: {}".format(k,"DE"))
             try:
                enc_record["index"].append(enc_dat)
                record_keys.discard(k)
@@ -158,6 +163,8 @@ def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, k
                try:
                   dat = record[k]
                   enc_dat = encrypt_as_de(dat, key)
+                  if debug:
+                     print("{}: {}".format(k,"DE"))
                   try:
                      enc_record["index"].append(enc_dat)
                      record_keys.discard(k)
@@ -189,7 +196,7 @@ def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, k
    return index_created
 
 
-def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, key):
+def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, key, debug=False):
    # pprint(enc_policy)
 
    record_keys = set(record_keys) # create new object and dont change original
@@ -201,6 +208,8 @@ def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, 
             k = m
             dat = record[k]
             enc_dat = encrypt_as_timestamp(dat, key)
+            if debug:
+               print("{}: {}".format(k,"TIMESTAMP"))
             if not enc_dat:
                continue
             try:
@@ -234,6 +243,8 @@ def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, 
                try:
                   dat = record[k]
                   enc_dat = encrypt_as_timestamp(dat, key)
+                  if debug:
+                     print("{}: {}".format(k,"TIMESTAMP"))
                   if not enc_dat:
                      continue
                   try:
@@ -262,7 +273,7 @@ def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, 
 
 
 
-def exact_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_key, cpabe_pk):
+def exact_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_key, cpabe_pk, debug=False):
 
    new_record_keys = set(record_keys) # create new object and dont change original
 
@@ -289,6 +300,8 @@ def exact_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_k
                new_record_keys.discard(k)
 
             if "abe_pol" in m:
+               if debug:
+                  print("{}: {}".format(k,m["abe_pol"]))
                abe_k = "cpabe_"+k
                enc_dat_abe = encrypt_as_cpabe(dat,m["abe_pol"], cpabe_pk)
                enc_record[abe_k] = enc_dat_abe
@@ -309,7 +322,7 @@ def exact_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_k
    record_keys.extend(new_record_keys)
 
 
-def regex_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_key, cpabe_pk):
+def regex_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_key, cpabe_pk, debug=False):
 
    new_record_keys = set(record_keys) # create new object and dont change original
 
@@ -339,6 +352,8 @@ def regex_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_k
                      new_record_keys.discard(k)
 
                   if "abe_pol" in m:
+                     if debug:
+                        print("{}: {}".format(k,m["abe_pol"]))
                      abe_k = "cpabe_"+k
                      enc_dat_abe = encrypt_as_cpabe(dat,m["abe_pol"], cpabe_pk)
                      enc_record[abe_k] = enc_dat_abe
@@ -363,7 +378,7 @@ def regex_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_k
    record_keys.extend(new_record_keys)
 
 
-def default_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_key, cpabe_pk):
+def default_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_key, cpabe_pk, debug=False):
    # if we can not enc using deff policy for any field in record_keys return false, sefety measure
 
    new_record_keys = set(record_keys) # create new object and dont change original YET
@@ -388,6 +403,8 @@ def default_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de
 
             if "abe_pol" in enc_policy:
                abe_pol = enc_policy["abe_pol"]
+               if debug:
+                  print("{}: {}".format(k,abe_pol))
                abe_k = "cpabe_"+k
                enc_dat_abe = encrypt_as_cpabe(dat,abe_pol, cpabe_pk)
                enc_record[abe_k] = enc_dat_abe
@@ -526,6 +543,19 @@ def get_all_keys(kms_url, name, DE_key_location, ORE_key_location, cpabe_pk_loca
             # "sk": abe_sk
          }
 
+def decrypt_cpabe(ciphertext, pk, sk):
+   try:
+      bsw07 = CPABEAlg()
+      return bsw07.cpabe_decrypt_deserialize(pk, sk, ciphertext)
+   except KeyboardInterrupt:
+      raise KeyboardInterrupt
+   except Exception:
+      # failed to decrypt
+      return None
+   except:
+      traceback.print_exc()
+      return None
+
 if __name__ == "__main__":
    # todo: add arguemnt parser   
    #        force keep keys
@@ -544,6 +574,11 @@ if __name__ == "__main__":
       ONLY_ONE = config_collector["debug"]["process_only_one"]
    except:
       ONLY_ONE = False
+
+   try:
+      SHOW_ENC_POL = config_collector["debug"]["show_enc_policy"]
+   except:
+      SHOW_ENC_POL = False
 
    try:
       max_numb_retries_post = config_collector["backend_server"]["max_post_retries"]
@@ -572,6 +607,7 @@ if __name__ == "__main__":
 
    # master_key_set = set()
    for record in honeypot_testdata:
+
       record_keys = list(record.keys()) # will be used up
       enc_record = dict()
 
@@ -582,7 +618,7 @@ if __name__ == "__main__":
          # master_key_set.update(set(record_keys))
          # print("all keys:",record_keys)
 
-      succ = create_indexes(enc_record, record_keys, record, config_collector['policy']['index'], keychain["de"])
+      succ = create_indexes(enc_record, record_keys, record, config_collector['policy']['index'], keychain["de"], debug=SHOW_ENC_POL)
       if not succ:
          print("skiping, no index created")
          if ONLY_ONE:
@@ -591,22 +627,22 @@ if __name__ == "__main__":
       
       if DEBUG:
          print(record_keys)
-      timestamp_match(enc_record, record_keys, record, config_collector['policy']['timestamp'], keychain["ore"])
+      timestamp_match(enc_record, record_keys, record, config_collector['policy']['timestamp'], keychain["ore"], debug=SHOW_ENC_POL)
       
       if DEBUG:
          print(record_keys)
 
-      exact_match(enc_record, record_keys, record, config_collector['policy']['exact'], keychain["de"], keychain["pk"])
+      exact_match(enc_record, record_keys, record, config_collector['policy']['exact'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
       
       if DEBUG:
          print(record_keys)
 
-      regex_match(enc_record, record_keys, record, config_collector['policy']['regex'], keychain["de"], keychain["pk"])
+      regex_match(enc_record, record_keys, record, config_collector['policy']['regex'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
    
       if DEBUG:
          print(record_keys)
 
-      default_match(enc_record, record_keys, record, config_collector['policy']['default'], keychain["de"], keychain["pk"])
+      default_match(enc_record, record_keys, record, config_collector['policy']['default'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
 
       if DEBUG:
          print(record_keys)
@@ -625,8 +661,9 @@ if __name__ == "__main__":
       if ONLY_ONE:
          break
 
-      print(".", end="", flush=True)
+      # print(".", end="", flush=True)
    print(flush=True)
+   # print(decrypt_cpabe(enc_record["cpabe_offset"], keychain["pk"], keychain["sk"]))
    # pprint(master_key_set)
 
 
@@ -635,3 +672,5 @@ if __name__ == "__main__":
 # todo 
 # support missing values in policy parcer
 # if get attribuets, then only fetch valid attributes and display them to user
+# remove de as part of policy "de_encrypt"
+# add debug when removing "SHOW_ENC_POL"
