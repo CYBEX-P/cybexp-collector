@@ -42,7 +42,7 @@ policy:
     full_index_overwrite: False # dont use any of the hardcoded indexes
 
     exact:
-      - match: "ipv4"
+      - match: "de"
 
     regex:
       - match: .*src.*

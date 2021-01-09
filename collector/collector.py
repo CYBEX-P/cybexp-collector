@@ -6,14 +6,18 @@ from de import RSADOAEP
 from ORE import *
 from cpabew import CPABEAlg
 from web_client import get_de_key, get_ore_key, get_cpabe_pub_key, get_org_cpabe_secret, post_enc_data
+from priv_common import load_yaml_file
 
-import jsonlines
 from tqdm import tqdm
-import yaml
 import re
 from dateutil import parser
 from datetime import datetime
-import pickle 
+import pickle
+# import threading
+import socket
+from concurrent.futures.thread import ThreadPoolExecutor
+import signal
+import json
 
 from pprint import pprint
 import traceback
@@ -40,31 +44,17 @@ def _str_to_epoch(some_time_str, debug=False):
    t = parser.parse(some_time_str)
    unix = t.timestamp()
    if debug:
-      print("Time:", t, "unix:",unix)
+      print("Time:", t, "unix:",unix, flush=True)
    return int(unix)
-
-def load_yaml_file(f_name):
-   with open(f_name) as f:
-      print("Loading data from {}...".format(f_name))
-      data = yaml.load(f, Loader=yaml.FullLoader)
-   return data
-
-def load_json_file(f_name):
-   with jsonlines.open(f_name) as reader:
-      print("Loading data from {}...".format(f_name))
-      dat = list()
-      for line in tqdm(reader):
-         dat.append(line["data"])
-   return dat
 
 
 def match_re_to_keys(reg: str, keys: list, debug=False):
    r = re.compile(reg)
    newlist = list(filter(r.match, keys))
    if debug and len(newlist) > 0:
-      print("reg: {}".format(repr(reg)))
-      print("OG keys: {}".format(keys))
-      print("matched keys [{}]: {}".format(repr(reg),newlist))
+      print("reg: {}".format(repr(reg)), flush=True)
+      print("OG keys: {}".format(keys), flush=True)
+      print("matched keys [{}]: {}".format(repr(reg),newlist), flush=True)
    return newlist
 
 
@@ -88,7 +78,8 @@ def encrypt_as_timestamp(dat,key, debug=False):
       return "ORE_encrypted"
    else:
       try:
-         dat = _str_to_epoch(dat)
+         if type(dat) != int:
+            dat = _str_to_epoch(dat)
          if type(dat) == int and dat > 0:
             return OREComparable.from_int(dat,key).get_cipher_obj().export()
          else:
@@ -96,9 +87,11 @@ def encrypt_as_timestamp(dat,key, debug=False):
       except KeyboardInterrupt:
          raise KeyboardInterrupt
       except:
-         if debug:
-            traceback.print_exc()
+         # if debug:
+         #    traceback.print_exc()
+         traceback.print_exc()
          return None
+
 def encrypt_as_cpabe(dat, policy, pk):
    global DEBUG_POLICY_PARCER
    if DEBUG_POLICY_PARCER:
@@ -129,7 +122,7 @@ def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, k
             dat = record[k]
             enc_dat = encrypt_as_de(dat, key)
             if debug:
-               print("{}: {}".format(k,"DE"))
+               print("{}: {}".format(k,"DE"), flush=True)
             try:
                enc_record["index"].append(enc_dat)
                record_keys.discard(k)
@@ -164,7 +157,7 @@ def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, k
                   dat = record[k]
                   enc_dat = encrypt_as_de(dat, key)
                   if debug:
-                     print("{}: {}".format(k,"DE"))
+                     print("{}: {}".format(k,"DE"), flush=True)
                   try:
                      enc_record["index"].append(enc_dat)
                      record_keys.discard(k)
@@ -209,7 +202,7 @@ def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, 
             dat = record[k]
             enc_dat = encrypt_as_timestamp(dat, key)
             if debug:
-               print("{}: {}".format(k,"TIMESTAMP"))
+               print("{}: {}".format(k,"TIMESTAMP"), flush=True)
             if not enc_dat:
                continue
             try:
@@ -244,7 +237,7 @@ def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, 
                   dat = record[k]
                   enc_dat = encrypt_as_timestamp(dat, key)
                   if debug:
-                     print("{}: {}".format(k,"TIMESTAMP"))
+                     print("{}: {}".format(k,"TIMESTAMP"), flush=True)
                   if not enc_dat:
                      continue
                   try:
@@ -301,7 +294,7 @@ def exact_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_k
 
             if "abe_pol" in m:
                if debug:
-                  print("{}: {}".format(k,m["abe_pol"]))
+                  print("{}: {}".format(k,m["abe_pol"]), flush=True)
                abe_k = "cpabe_"+k
                enc_dat_abe = encrypt_as_cpabe(dat,m["abe_pol"], cpabe_pk)
                enc_record[abe_k] = enc_dat_abe
@@ -353,7 +346,7 @@ def regex_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de_k
 
                   if "abe_pol" in m:
                      if debug:
-                        print("{}: {}".format(k,m["abe_pol"]))
+                        print("{}: {}".format(k,m["abe_pol"]), flush=True)
                      abe_k = "cpabe_"+k
                      enc_dat_abe = encrypt_as_cpabe(dat,m["abe_pol"], cpabe_pk)
                      enc_record[abe_k] = enc_dat_abe
@@ -404,7 +397,7 @@ def default_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de
             if "abe_pol" in enc_policy:
                abe_pol = enc_policy["abe_pol"]
                if debug:
-                  print("{}: {}".format(k,abe_pol))
+                  print("{}: {}".format(k,abe_pol), flush=True)
                abe_k = "cpabe_"+k
                enc_dat_abe = encrypt_as_cpabe(dat,abe_pol, cpabe_pk)
                enc_record[abe_k] = enc_dat_abe
@@ -429,9 +422,9 @@ def default_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de
 
 def post_record(api_url, enc_record:dict, debug=False):
    if debug:
-      print('#'*50)
+      print('#'*50, flush=True)
       pprint(enc_record)
-      print('#'*50)
+      print('#'*50, flush=True)
    #post data to server
    return post_enc_data(api_url, enc_record, debug=debug)
 
@@ -454,14 +447,14 @@ def load_fetch_de_key(kms_url, DE_key_location):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         de_key = get_de_key(kms_url)
+         de_key = get_de_key(kms_url, debug=False)
          if de_key == None:
             sys.exit("Could not fetch DE key from KMS server({})".format(kms_url))
          return de_key
       except KeyboardInterrupt:
          raise KeyboardInterrupt
       except:
-         traceback.print_exc()
+         # traceback.print_exc()
          sys.exit("Could not fetch DE key from KMS server({})".format(kms_url))
       open(DE_key_location, "wb").write(de_key)
       return 
@@ -482,7 +475,7 @@ def load_fetch_ore_key(kms_url, ORE_key_location):
       except KeyboardInterrupt:
          raise KeyboardInterrupt
       except:
-         traceback.print_exc()
+         # traceback.print_exc()
          sys.exit("Could not fetch ORE key from KMS server({})".format(kms_url))
       open(ORE_key_location, "wb").write(ore_key)
       return 
@@ -503,7 +496,7 @@ def load_fetch_cpabe_pk(kms_url, cpabe_pk_location):
       except KeyboardInterrupt:
          raise KeyboardInterrupt
       except:
-         traceback.print_exc()
+         # traceback.print_exc()
          sys.exit("Could not fetch CPABE Public Key from KMS server({})".format(kms_url))
       open(cpabe_pk_location, "wb").write(pk_key)
       return 
@@ -524,7 +517,7 @@ def load_fetch_cpabe_sk(kms_url, name, cpabe_sk_location):
       except KeyboardInterrupt:
          raise KeyboardInterrupt
       except:
-         traceback.print_exc()
+         # traceback.print_exc()
          sys.exit("Could not fetch CPABE Public Key({}) from KMS server({})".format(name,kms_url))
       open(cpabe_sk_location, "wb").write(sk_key)
       return 
@@ -556,13 +549,149 @@ def decrypt_cpabe(ciphertext, pk, sk):
       traceback.print_exc()
       return None
 
+
+def conn_to_record(conn):
+   size = 1024
+   record_bytes = bytes()
+   try:
+      while True:
+         data = conn.recv(size)
+         if data:
+            record_bytes += data
+         else:
+            break
+   except:
+      traceback.print_exc()
+      return None
+
+   try:
+      record_str = record_bytes.decode()
+      # print(record_str)
+      record = json.loads(record_str)
+      return record
+   except:
+      traceback.print_exc()
+      return None
+
+def handle_client(conn, addr, max_numb_retries_post, DEBUG,other_args):
+   print("N",end="",flush=True)
+
+   record = conn_to_record(conn)
+
+   if not record: 
+      # print("closing")
+      try:
+         conn.close()
+      except:
+         traceback.print_exc()
+         pass
+      finally:
+         return
+   print("R",end="",flush=True)
+
+   enc_record = encrypt_record(record, **other_args)
+   print("E",end="",flush=True)
+
+   if not enc_record:
+      try:
+         conn.close()
+      except:
+         pass
+      finally:
+         return
+
+
+   post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=DEBUG)
+   if DEBUG:
+         print("posted?", post_succ, flush=True)
+   for i in range(max_numb_retries_post):
+      if post_succ:
+         print("P",end="",flush=True)
+         break
+      if DEBUG:
+         print("retrying to post...", flush=True)
+      post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=DEBUG)
+      if DEBUG:
+         print("posted?", post_succ, flush=True)
+
+   try:
+      conn.close()
+   except:
+         pass
+   finally:
+         return
+
+def encrypt_record(record, keychain, config_collector, SHOW_ENC_POL, DEBUG):
+
+   record_keys = list(record.keys()) # will be used up
+   enc_record = dict()
+
+   if DEBUG:
+      print("="*50, flush=True)
+      pprint(record)
+      print("="*50, flush=True)
+      # master_key_set.update(set(record_keys))
+      # print("all keys:",record_keys)
+
+   succ = create_indexes(enc_record, record_keys, record, config_collector['policy']['index'], keychain["de"], debug=SHOW_ENC_POL)
+   if not succ:
+      print("skiping, no index created", flush=True)
+      # if ONLY_ONE:
+      #    break
+      return None
+   
+   if DEBUG:
+      print(record_keys, flush=True)
+   timestamp_match(enc_record, record_keys, record, config_collector['policy']['timestamp'], keychain["ore"], debug=SHOW_ENC_POL)
+   
+   if DEBUG:
+      print(record_keys, flush=True)
+
+   exact_match(enc_record, record_keys, record, config_collector['policy']['exact'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
+   
+   if DEBUG:
+      print(record_keys, flush=True)
+
+   regex_match(enc_record, record_keys, record, config_collector['policy']['regex'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
+
+   if DEBUG:
+      print(record_keys, flush=True)
+
+   default_match(enc_record, record_keys, record, config_collector['policy']['default'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
+
+   if DEBUG:
+      print(record_keys, flush=True)
+
+
+   return enc_record
+
+
+def signal_handler(sig, frame):
+   global EXIT_MAINLOOP, SIGINT_COUNT
+   if sig == signal.SIGINT:
+      if SIGINT_COUNT >= 1:
+         sys.exit("Forced exiting now...")
+      print('\nExiting: waiting for threads to finish working...(Press Ctrl+c to force)', flush=True)
+      EXIT_MAINLOOP = True
+      SIGINT_COUNT += 1
+
+
+   
+   # if ONLY_ONE:
+   #    break
+
+   # print(".", end="", flush=True)
+# print(flush=True)
+# print(decrypt_cpabe(enc_record["cpabe_offset"], keychain["pk"], keychain["sk"]))
+# pprint(master_key_set)
+
+
 if __name__ == "__main__":
    # todo: add arguemnt parser   
    #        force keep keys
    #     autoremove keys on exit
 
    config_f_name = "./config.yaml"#sys.argv[1] 
-   data_f_name = "./tahoe-honeypot.jsonl"
 
    config_collector = load_yaml_file(config_f_name)
    try:
@@ -587,6 +716,21 @@ if __name__ == "__main__":
    except:
       max_numb_retries_post = 0
 
+
+   try:
+      enc_worker_threads = config_collector["enc_worker_threads"]
+      if enc_worker_threads <= 0:
+         enc_worker_threads = 10
+   except:
+      enc_worker_threads = 10
+
+   try:
+      web_conn_listen = config_collector["web_conn_listen"]
+      if web_conn_listen < 0:
+         web_conn_listen = 0
+   except:
+      web_conn_listen = 0
+
    key_arguments = {
                      "kms_url": config_collector["kms"]["url"],
                      "name": config_collector["name"],
@@ -597,76 +741,52 @@ if __name__ == "__main__":
                     }
    keychain = get_all_keys(**key_arguments)
 
-   # fetch data
-   honeypot_testdata = load_json_file(data_f_name)
-
    if DEBUG:
-      print("#"*21 +" config " + "#"*21)
+      print("#"*21 +" config " + "#"*21, flush=True)
       pprint(config_collector)
-      print("#"*50)
+      print("#"*50, flush=True)
 
    # master_key_set = set()
-   for record in honeypot_testdata:
+   # for record in honeypot_testdata:
 
-      record_keys = list(record.keys()) # will be used up
-      enc_record = dict()
 
-      if DEBUG:
-         print("="*50)
-         pprint(record)
-         print("="*50)
-         # master_key_set.update(set(record_keys))
-         # print("all keys:",record_keys)
+   enc_argument = {
+                     "keychain": keychain,
+                     "config_collector": config_collector,
+                     "SHOW_ENC_POL": SHOW_ENC_POL,
+                     "DEBUG": DEBUG #,
+                     # "max_numb_retries_post": max_numb_retries_post
+                  }
 
-      succ = create_indexes(enc_record, record_keys, record, config_collector['policy']['index'], keychain["de"], debug=SHOW_ENC_POL)
-      if not succ:
-         print("skiping, no index created")
+   serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+   serversocket.settimeout(0.2)
+   serversocket.bind(("0.0.0.0", 8080))
+   serversocket.listen(web_conn_listen)
+
+   EXIT_MAINLOOP = False
+   SIGINT_COUNT = 0
+   signal.signal(signal.SIGINT, signal_handler)
+
+   print("Waiting for new connetions...",flush=True)
+
+   with ThreadPoolExecutor(max_workers=enc_worker_threads) as executor:
+      while not EXIT_MAINLOOP:
+         try:
+            conn, addr = serversocket.accept()
+         except socket.timeout:
+            continue # allow to exit loop if needed
+         # threading.Thread(target = handle_client,args = (conn,addr)).start()
+         executor.submit(handle_client, conn, addr,max_numb_retries_post,DEBUG, enc_argument)
+         
          if ONLY_ONE:
             break
-         continue
-      
-      if DEBUG:
-         print(record_keys)
-      timestamp_match(enc_record, record_keys, record, config_collector['policy']['timestamp'], keychain["ore"], debug=SHOW_ENC_POL)
-      
-      if DEBUG:
-         print(record_keys)
+      # exiting with will have same effects as excutor shutdown
+      # will raise execption if new jobs submitted
+      # will wait for all queue jobs to finish, dealocate resources
+      # executor.shutdown(wait=True, cancel_futures=False)
+   # will get here after all threads finish
 
-      exact_match(enc_record, record_keys, record, config_collector['policy']['exact'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
-      
-      if DEBUG:
-         print(record_keys)
-
-      regex_match(enc_record, record_keys, record, config_collector['policy']['regex'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
-   
-      if DEBUG:
-         print(record_keys)
-
-      default_match(enc_record, record_keys, record, config_collector['policy']['default'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
-
-      if DEBUG:
-         print(record_keys)
-
-      post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=DEBUG)
-      if DEBUG:
-            print("posted?", post_succ)
-      for i in range(max_numb_retries_post):
-         if post_succ:
-            break
-         print("retrying to post...")
-         post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=DEBUG)
-         if DEBUG:
-            print("posted?", post_succ)
-      
-      if ONLY_ONE:
-         break
-
-      # print(".", end="", flush=True)
-   print(flush=True)
-   # print(decrypt_cpabe(enc_record["cpabe_offset"], keychain["pk"], keychain["sk"]))
-   # pprint(master_key_set)
-
-
+   print("",flush=True)
 
 
 # todo 

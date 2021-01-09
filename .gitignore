@@ -3,3 +3,5 @@ venv/
 out
 secrets/*
 !secrets/keep_this_file
+collector-client/env
+collector-client/venv
