@@ -9,6 +9,16 @@ DOCKERFILE_LOC=$FULL_PATH
 
 OG_ARGUMENTS="$@" # in case we need to exec when starting docker
 
+if [ "`id -u`" -eq "0" ]; then
+   echo "Not recomended to run ar root. Continuing anyways..."
+fi
+if [[ "`groups`" == *"docker"* || "`id -u`" -eq "0" ]]; then
+      DOCKER="docker"
+   else
+      DOCKER="sudo docker"
+
+fi
+
 function print_help {
    echo
    echo 'Create and run a docker container of type collector. By default the container is left behind,'
@@ -16,6 +26,7 @@ function print_help {
    echo
    echo -e 'Usage:'
    echo -e "  $0"' [Options] config-file'
+   echo -e "  $0"' -a|--get-attrib config-file'
    echo 
    echo -e 'Positional arguments:'
    echo -e '  config-file\t\tconfiguration file yaml'
@@ -30,6 +41,9 @@ function print_help {
    echo -e '              \t\tof this type exists, it will remove all'
 
 
+   echo -e '  -a, --get-attrib\t\tget possible attributes from KMS server.'
+   echo -e '                  \t\tThis does not use docker, therefore all other flags are ignored'
+
    echo -e '  -b, --bind [IFACE:]PORT t\tinterface and/or to bind to (eg 192.168.1.100:8080)(default: 6000)'
    echo -e '  -h, --help\t\tprint this help'
 
@@ -38,7 +52,7 @@ function print_help {
 }
 
 function build_image {
-  sudo docker build -t $IMAGE_NAME $DOCKERFILE_LOC
+  $DOCKER build -t $IMAGE_NAME $DOCKERFILE_LOC
   return $?
 }
 
@@ -54,28 +68,55 @@ function run_image {
    echo "config file: $CONFIG_FILE"
    echo "bind: $BIND_IFACE_PORT"
 
-   # CONT_ID=$(sudo docker run -d -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ -it $IMAGE_NAME $other_args)
-   sudo docker run -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ -it $IMAGE_NAME $other_args
-   # sudo docker logs -f $CONT_ID
+   # CONT_ID=$($DOCKER run -d -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ -it $IMAGE_NAME $other_args)
+   $DOCKER run -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ -it $IMAGE_NAME $other_args
+   # $DOCKER logs -f $CONT_ID
 
    return $?
 }
 function run_shell {
    touch $OUTPUT_FILE
-   sudo docker run  -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ --entrypoint /bin/bash -it $IMAGE_NAME
-   CONT_ID=`sudo docker ps --all | grep $IMAGE_NAME | awk '{print $1}' | head -n 1`
+   $DOCKER run  -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ --entrypoint /bin/bash -it $IMAGE_NAME
+   CONT_ID=`$DOCKER ps --all | grep $IMAGE_NAME | awk '{print $1}' | head -n 1`
 
 
    return $?
 
 }
 function remove_container {
-   DOCKER_ID=`sudo docker ps --all | grep $IMAGE_NAME | awk '{print $1}'`
+   DOCKER_ID=`$DOCKER ps --all | grep $IMAGE_NAME | awk '{print $1}'`
    echo "Stopping and removing container(s)"
-   sudo docker stop $DOCKER_ID > /dev/null 2>&1
-   sudo docker rm $DOCKER_ID #> /dev/null 2>&1
+   $DOCKER stop $DOCKER_ID > /dev/null 2>&1
+   $DOCKER rm $DOCKER_ID #> /dev/null 2>&1
    return $?
 }
+
+# https://stackoverflow.com/a/21189044/12044480
+# parse yaml file 
+function parse_yaml {
+   local prefix=$2
+   local s='[[:space:]]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034')
+   sed -ne "s|^\($s\):|\1|" \
+        -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)[\"']$s\$|\1$fs\2$fs\3|p" \
+        -e "s|^\($s\)\($w\)$s:$s\(.*\)$s\$|\1$fs\2$fs\3|p"  $1 |
+   awk -F$fs '{
+      indent = length($1)/2;
+      vname[indent] = $2;
+      for (i in vname) {if (i > indent) {delete vname[i]}}
+      if (length($3) > 0) {
+         vn=""; for (i=0; i<indent; i++) {vn=(vn)(vname[i])("_")}
+         printf("%s%s%s=\"%s\"\n", "'$prefix'",vn, $2, $3);
+      }
+   }'
+}
+
+function get_attrib {
+   eval $(parse_yaml $CONFIG_FILE "CONF_")
+
+   curl ${CONF_kms_url}/get/attributes
+   exit 0
+}
+
 
 #flags
 BUILD_IT=0
@@ -83,6 +124,7 @@ BUILD_ONLY=0
 SHELL_ONLY=0
 CLEANUP=0
 BIND_IFACE_PORT="6000"
+GET_ATTRIB=0
 
 POSITIONAL=""
 while (( "$#" )); do
@@ -106,6 +148,10 @@ while (( "$#" )); do
 
       -c|--vacuum)
          CLEANUP=1
+         shift
+         ;;
+      -a|--get-attrib)
+         GET_ATTRIB=1
          shift
          ;;
       -b|--bind)
@@ -141,7 +187,12 @@ else
    exit 2
 fi
 
-DOCKER_STATE=`sudo systemctl status docker | grep Active: | head -n 1 | awk '{print $2}'`
+if [ $GET_ATTRIB -eq 1 ]; then
+   get_attrib
+   exit 0
+fi
+
+DOCKER_STATE=`systemctl status docker | grep Active: | head -n 1 | awk '{print $2}'`
 
 if [ "$DOCKER_STATE" = "inactive" ]; then
    echo "Starting docker service..."
@@ -180,6 +231,3 @@ fi
 
 
 
-
-# parse yaml file 
-# https://stackoverflow.com/a/21189044/12044480

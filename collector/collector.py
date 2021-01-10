@@ -691,7 +691,7 @@ if __name__ == "__main__":
    #        force keep keys
    #     autoremove keys on exit
 
-   config_f_name = "./config.yaml"#sys.argv[1] 
+   config_f_name = "/config.yaml"#sys.argv[1] 
 
    config_collector = load_yaml_file(config_f_name)
    try:

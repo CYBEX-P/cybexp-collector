@@ -11,7 +11,7 @@ RUN mkdir -p /secrets
 
 # copy collector,config last
 COPY ./collector /collector
-COPY ./config.yaml /collector/config.yaml
+# COPY ./config.yaml /collector/config.yaml
 
 
 WORKDIR /collector
