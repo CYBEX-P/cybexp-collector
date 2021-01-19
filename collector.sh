@@ -26,6 +26,7 @@ function print_help {
    echo
    echo -e 'Usage:'
    echo -e "  $0"' [Options] config-file'
+   echo -e "  $0"' --build --build-only'
    echo -e "  $0"' -a|--get-attrib config-file'
    echo 
    echo -e 'Positional arguments:'
@@ -44,7 +45,8 @@ function print_help {
    echo -e '  -a, --get-attrib\t\tget possible attributes from KMS server.'
    echo -e '                  \t\tThis does not use docker, therefore all other flags are ignored'
 
-   echo -e '  -b, --bind [IFACE:]PORT t\tinterface and/or to bind to (eg 192.168.1.100:8080)(default: 6000)'
+   echo -e '  --bind [IFACE:]PORT'
+   echo -e '              \t\tinterface and/or port to bind to (eg 192.168.1.100:8080)(default: 6000)'
    echo -e '  -h, --help\t\tprint this help'
 
 
@@ -111,9 +113,17 @@ function parse_yaml {
 }
 
 function get_attrib {
+   # echo $CONFIG_FILE
    eval $(parse_yaml $CONFIG_FILE "CONF_")
+   auth_args=""
+   if [ -n "${CONF_basic_auth_user+set}" ] && [ -n "${CONF_basic_auth_pass+set}" ]; then
+      echo "basic auth: enabled"
+      auth_args="-u ${CONF_basic_auth_user}:${CONF_basic_auth_pass}"
+   else
+      echo "basic auth: disabled"
+   fi
 
-   curl ${CONF_kms_url}/get/attributes
+   curl $auth_args ${CONF_kms_url}/get/attributes
    exit 0
 }
 
@@ -154,7 +164,7 @@ while (( "$#" )); do
          GET_ATTRIB=1
          shift
          ;;
-      -b|--bind)
+      --bind)
          if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
             BIND_IFACE_PORT=$2
             shift 2
@@ -176,10 +186,10 @@ while (( "$#" )); do
 done
 # set positional arguments in their proper place
 eval set -- "$POSITIONAL"
-if [ "$#" -eq 1 ]; then
+if [ "$#" -eq 1 ] && [ $BUILD_ONLY -eq 0 ]; then
    CONFIG_FILE="$1"
    shift 1
-else
+elif [ $BUILD_ONLY -eq 0 ];then
    # echo $#
    # echo $POSITIONAL
    echo "Error: Missing positional arguments." >&2

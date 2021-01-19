@@ -8,15 +8,15 @@
 name: "Public" 
 
 # uncomment the following when usgin basic authentication with the server
-# basic_auth:
-#   user: johndoe
-#   pass: AK3gdyqnJvR5SsRzNn8eF
+basic_auth:
+  user: johndoe
+  pass: AKkmyqnJvR5SsRzNn8eF
 
 
 kms:
-  url: "http://192.168.1.101:5002"
+  url: "https://cybexp-priv.ignaciochg.com:5002"
 backend_server:
-  url: "http://192.168.1.101:5001"
+  url: "https://cybexp-priv.ignaciochg.com:5001"
   max_post_retries: 5
 
 # max number of connections, 0=auto
@@ -44,6 +44,7 @@ policy:
 
     exact:
       - match: "ipv4"
+      - match: "de"
 
     regex:
       - match: .*src.*

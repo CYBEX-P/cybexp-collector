@@ -7,9 +7,10 @@
 # alpha numeric only, -, _
 name: "official_org_name" 
 
-# api:
-#   username: test_user1
-#   token: ksyhfkjlashlkfjahsfa
+# uncomment the following when usgin basic authentication with the server
+# basic_auth:
+#   user: test_user1
+#   pass: ksyhfkjlashlkfjahsfa
 
 
 kms:

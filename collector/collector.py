@@ -5,12 +5,12 @@ sys.path.append("/priv-libs/libs")
 from de import RSADOAEP
 from ORE import *
 from cpabew import CPABEAlg
-from web_client import get_de_key, get_ore_key, get_cpabe_pub_key, get_org_cpabe_secret, post_enc_data
+from web_client import get_de_key, get_ore_key, get_cpabe_pub_key, get_org_cpabe_secret, post_enc_data, test_auth
 from priv_common import load_yaml_file
 
 from tqdm import tqdm
 import re
-from dateutil import parser
+from dateutil import parser as t_parse
 from datetime import datetime
 import pickle
 # import threading
@@ -41,7 +41,7 @@ def _to_bool(st):
 def _str_to_epoch(some_time_str, debug=False):
    # parse dates without knwoing format
    # https://stackoverflow.com/a/30468539/12044480
-   t = parser.parse(some_time_str)
+   t = t_parser.parse(some_time_str)
    unix = t.timestamp()
    if debug:
       print("Time:", t, "unix:",unix, flush=True)
@@ -420,13 +420,13 @@ def default_match(enc_record:dict, record_keys:list, record:dict, enc_policy, de
    return True
 
 
-def post_record(api_url, enc_record:dict, debug=False):
+def post_record(api_url, enc_record:dict, debug=False, auth=None):
    if debug:
       print('#'*50, flush=True)
       pprint(enc_record)
       print('#'*50, flush=True)
    #post data to server
-   return post_enc_data(api_url, enc_record, debug=debug)
+   return post_enc_data(api_url, enc_record, debug=debug, auth=auth)
 
 
 
@@ -439,7 +439,7 @@ def post_record(api_url, enc_record:dict, debug=False):
 # }
 
 # https://stackoverflow.com/questions/3640359/regular-expressions-search-in-list/39593126
-def load_fetch_de_key(kms_url, DE_key_location):
+def load_fetch_de_key(kms_url, DE_key_location, auth=None):
    try:
       k = open(DE_key_location, "rb").read()
       return
@@ -447,7 +447,7 @@ def load_fetch_de_key(kms_url, DE_key_location):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         de_key = get_de_key(kms_url, debug=False)
+         de_key = get_de_key(kms_url, debug=False, auth=auth)
          if de_key == None:
             sys.exit("Could not fetch DE key from KMS server({})".format(kms_url))
          return de_key
@@ -460,7 +460,7 @@ def load_fetch_de_key(kms_url, DE_key_location):
       return 
    sys.exit("Could not load or fetch DE key")
 
-def load_fetch_ore_key(kms_url, ORE_key_location):
+def load_fetch_ore_key(kms_url, ORE_key_location, auth=None):
    try:
       k = open(ORE_key_location, "rb").read()
       return
@@ -468,7 +468,7 @@ def load_fetch_ore_key(kms_url, ORE_key_location):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         ore_key = get_ore_key(kms_url)
+         ore_key = get_ore_key(kms_url, auth=auth)
          if ore_key == None:
             sys.exit("Could not fetch ORE key from KMS server({})".format(kms_url))
          return ore_key
@@ -481,7 +481,7 @@ def load_fetch_ore_key(kms_url, ORE_key_location):
       return 
    sys.exit("Could not load or fetch ORE key")
 
-def load_fetch_cpabe_pk(kms_url, cpabe_pk_location):
+def load_fetch_cpabe_pk(kms_url, cpabe_pk_location, auth=None):
    try:
       k = open(cpabe_pk_location, "rb").read()
       return
@@ -489,7 +489,7 @@ def load_fetch_cpabe_pk(kms_url, cpabe_pk_location):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         pk_key = get_cpabe_pub_key(kms_url,debug=True)
+         pk_key = get_cpabe_pub_key(kms_url,debug=True, auth=auth)
          if pk_key == None:
             sys.exit("Could not fetch CPABE Public Key from KMS server({})".format(kms_url))
          return pk_key
@@ -502,7 +502,7 @@ def load_fetch_cpabe_pk(kms_url, cpabe_pk_location):
       return 
    sys.exit("Could not load or fetch CPABE Public Key")
 
-def load_fetch_cpabe_sk(kms_url, name, cpabe_sk_location):
+def load_fetch_cpabe_sk(kms_url, name, cpabe_sk_location, auth=None):
    try:
       k = open(cpabe_sk_location, "rb").read()
       return
@@ -510,7 +510,7 @@ def load_fetch_cpabe_sk(kms_url, name, cpabe_sk_location):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         sk_key = get_org_cpabe_secret(kms_url,name)
+         sk_key = get_org_cpabe_secret(kms_url,name, auth=auth)
          if sk_key == None:
             sys.exit("Could not fetch CPABE Public Key({}) from KMS server({})".format(name,kms_url))
          return sk_key
@@ -523,11 +523,11 @@ def load_fetch_cpabe_sk(kms_url, name, cpabe_sk_location):
       return 
    sys.exit("Could not load or fetch CPABE Secret Key({})".format(name))
 
-def get_all_keys(kms_url, name, DE_key_location, ORE_key_location, cpabe_pk_location, cpabe_sk_location):
-   de = load_fetch_de_key(kms_url,DE_key_location)
-   ore = load_fetch_ore_key(kms_url,ORE_key_location)
-   abe_pk = load_fetch_cpabe_pk(kms_url,cpabe_pk_location)
-   # abe_sk = load_fetch_cpabe_sk(kms_url,name, cpabe_sk_location)
+def get_all_keys(kms_url, name, DE_key_location, ORE_key_location, cpabe_pk_location, cpabe_sk_location, auth=None):
+   de = load_fetch_de_key(kms_url,DE_key_location, auth=auth)
+   ore = load_fetch_ore_key(kms_url,ORE_key_location, auth=auth)
+   abe_pk = load_fetch_cpabe_pk(kms_url,cpabe_pk_location, auth=auth)
+   # abe_sk = load_fetch_cpabe_sk(kms_url,name, cpabe_sk_location, auth=auth)
 
    return {
             "de": de,
@@ -573,7 +573,7 @@ def conn_to_record(conn):
       traceback.print_exc()
       return None
 
-def handle_client(conn, addr, max_numb_retries_post, DEBUG,other_args):
+def handle_client(conn, addr, max_numb_retries_post, DEBUG,other_args, auth=None):
    print("N",end="",flush=True)
 
    record = conn_to_record(conn)
@@ -601,7 +601,7 @@ def handle_client(conn, addr, max_numb_retries_post, DEBUG,other_args):
          return
 
 
-   post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=DEBUG)
+   post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=True, auth=auth)
    if DEBUG:
          print("posted?", post_succ, flush=True)
    for i in range(max_numb_retries_post):
@@ -610,7 +610,7 @@ def handle_client(conn, addr, max_numb_retries_post, DEBUG,other_args):
          break
       if DEBUG:
          print("retrying to post...", flush=True)
-      post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=DEBUG)
+      post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=DEBUG, auth=auth)
       if DEBUG:
          print("posted?", post_succ, flush=True)
 
@@ -691,6 +691,9 @@ if __name__ == "__main__":
    #        force keep keys
    #     autoremove keys on exit
 
+   # parser = create_parser()
+   # args = parser.parse_args()
+
    config_f_name = "/config.yaml"#sys.argv[1] 
 
    config_collector = load_yaml_file(config_f_name)
@@ -731,13 +734,34 @@ if __name__ == "__main__":
    except:
       web_conn_listen = 0
 
+   basic_auth = None
+   try:
+      basic_auth_user = config_collector["basic_auth"]["user"]
+      try:
+         basic_auth_pass = config_collector["basic_auth"]["pass"]
+         basic_auth = (basic_auth_user, basic_auth_pass)
+         print("Baic auth: enabled")
+      except:
+         exit("Baic auth: no password specified. Exiting.\n")
+   except:
+      print("Baic auth: disabled")
+      basic_auth = None
+
+
+   if basic_auth != None:
+      if not test_auth(config_collector["kms"]["url"], basic_auth):
+         exit("Test failed: KMS basic auth. quiting.")
+      if not test_auth(config_collector["backend_server"]["url"], basic_auth):
+         exit("Test failed: backend basic auth. quiting.")
+
    key_arguments = {
                      "kms_url": config_collector["kms"]["url"],
                      "name": config_collector["name"],
                      "DE_key_location": config_collector["key_files"]["de"],
                      "ORE_key_location": config_collector["key_files"]["ore"],
                      "cpabe_pk_location": config_collector["key_files"]["cpabe_pub"],
-                     "cpabe_sk_location": config_collector["key_files"]["cpabe_secret"]
+                     "cpabe_sk_location": config_collector["key_files"]["cpabe_secret"],
+                     "auth": basic_auth
                     }
    keychain = get_all_keys(**key_arguments)
 
@@ -776,7 +800,7 @@ if __name__ == "__main__":
          except socket.timeout:
             continue # allow to exit loop if needed
          # threading.Thread(target = handle_client,args = (conn,addr)).start()
-         executor.submit(handle_client, conn, addr,max_numb_retries_post,DEBUG, enc_argument)
+         executor.submit(handle_client, conn, addr,max_numb_retries_post,DEBUG, enc_argument, auth=basic_auth)
          
          if ONLY_ONE:
             break
@@ -794,3 +818,18 @@ if __name__ == "__main__":
 # if get attribuets, then only fetch valid attributes and display them to user
 # remove de as part of policy "de_encrypt"
 # add debug when removing "SHOW_ENC_POL"
+
+
+
+# def create_parser():
+#    parser = argparse.ArgumentParser(description='Collector encryption module.')
+
+#    parser.add_argument('--user', metavar='USER', type=str, dest='auth_user',
+#                        default=None,
+#                        help='Basic auth for server, user. must be used with --pass (default: off)')
+#    parser.add_argument('--pass', metavar='id', type=str, dest='auth_pass',
+#                        default=None,
+#                     help='Basic auth for server, pass')
+
+
+#    return parser
