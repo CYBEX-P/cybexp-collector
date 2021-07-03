@@ -5,7 +5,7 @@ sys.path.append("/priv-libs/libs")
 from de import RSADOAEP
 from ORE import *
 from cpabew import CPABEAlg
-from web_client import get_de_key, get_ore_key, get_cpabe_pub_key, get_org_cpabe_secret, post_enc_data, test_auth
+from web_client import get_de_key, get_ore_key, get_cpabe_pub_key, get_org_cpabe_secret, post_enc_data, test_auth, test_token
 from priv_common import load_yaml_file
 
 from tqdm import tqdm
@@ -41,7 +41,7 @@ def _to_bool(st):
 def _str_to_epoch(some_time_str, debug=False):
    # parse dates without knwoing format
    # https://stackoverflow.com/a/30468539/12044480
-   t = t_parser.parse(some_time_str)
+   t = t_parse.parse(some_time_str)
    unix = t.timestamp()
    if debug:
       print("Time:", t, "unix:",unix, flush=True)
@@ -89,7 +89,7 @@ def encrypt_as_timestamp(dat,key, debug=False):
       except:
          # if debug:
          #    traceback.print_exc()
-         traceback.print_exc()
+         # traceback.print_exc()
          return None
 
 def encrypt_as_cpabe(dat, policy, pk):
@@ -439,7 +439,7 @@ def post_record(api_url, enc_record:dict, debug=False, auth=None):
 # }
 
 # https://stackoverflow.com/questions/3640359/regular-expressions-search-in-list/39593126
-def load_fetch_de_key(kms_url, DE_key_location, auth=None):
+def load_fetch_de_key(kms_url,kms_access_key, DE_key_location, auth=None):
    try:
       k = open(DE_key_location, "rb").read()
       return
@@ -447,7 +447,7 @@ def load_fetch_de_key(kms_url, DE_key_location, auth=None):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         de_key = get_de_key(kms_url, debug=False, auth=auth)
+         de_key = get_de_key(kms_url,kms_access_key, debug=False, auth=auth)
          if de_key == None:
             sys.exit("Could not fetch DE key from KMS server({})".format(kms_url))
          return de_key
@@ -460,7 +460,7 @@ def load_fetch_de_key(kms_url, DE_key_location, auth=None):
       return 
    sys.exit("Could not load or fetch DE key")
 
-def load_fetch_ore_key(kms_url, ORE_key_location, auth=None):
+def load_fetch_ore_key(kms_url,kms_access_key, ORE_key_location, auth=None):
    try:
       k = open(ORE_key_location, "rb").read()
       return
@@ -468,7 +468,7 @@ def load_fetch_ore_key(kms_url, ORE_key_location, auth=None):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         ore_key = get_ore_key(kms_url, auth=auth)
+         ore_key = get_ore_key(kms_url,kms_access_key, auth=auth)
          if ore_key == None:
             sys.exit("Could not fetch ORE key from KMS server({})".format(kms_url))
          return ore_key
@@ -481,7 +481,7 @@ def load_fetch_ore_key(kms_url, ORE_key_location, auth=None):
       return 
    sys.exit("Could not load or fetch ORE key")
 
-def load_fetch_cpabe_pk(kms_url, cpabe_pk_location, auth=None):
+def load_fetch_cpabe_pk(kms_url,kms_access_key, cpabe_pk_location, auth=None):
    try:
       k = open(cpabe_pk_location, "rb").read()
       return
@@ -489,7 +489,7 @@ def load_fetch_cpabe_pk(kms_url, cpabe_pk_location, auth=None):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         pk_key = get_cpabe_pub_key(kms_url,debug=True, auth=auth)
+         pk_key = get_cpabe_pub_key(kms_url,kms_access_key, debug=True, auth=auth)
          if pk_key == None:
             sys.exit("Could not fetch CPABE Public Key from KMS server({})".format(kms_url))
          return pk_key
@@ -502,7 +502,7 @@ def load_fetch_cpabe_pk(kms_url, cpabe_pk_location, auth=None):
       return 
    sys.exit("Could not load or fetch CPABE Public Key")
 
-def load_fetch_cpabe_sk(kms_url, name, cpabe_sk_location, auth=None):
+def load_fetch_cpabe_sk(kms_url, kms_access_key, cpabe_sk_location, auth=None):
    try:
       k = open(cpabe_sk_location, "rb").read()
       return
@@ -510,24 +510,24 @@ def load_fetch_cpabe_sk(kms_url, name, cpabe_sk_location, auth=None):
       raise KeyboardInterrupt
    except FileNotFoundError:
       try:
-         sk_key = get_org_cpabe_secret(kms_url,name, auth=auth)
+         sk_key = get_org_cpabe_secret(kms_url,kms_access_key, auth=auth)
          if sk_key == None:
-            sys.exit("Could not fetch CPABE Public Key({}) from KMS server({})".format(name,kms_url))
+            sys.exit("Could not fetch CPABE Public Key from KMS server({})".format(kms_url))
          return sk_key
       except KeyboardInterrupt:
          raise KeyboardInterrupt
       except:
          # traceback.print_exc()
-         sys.exit("Could not fetch CPABE Public Key({}) from KMS server({})".format(name,kms_url))
+         sys.exit("Could not fetch CPABE Public Key from KMS server({})".format(kms_url))
       open(cpabe_sk_location, "wb").write(sk_key)
       return 
-   sys.exit("Could not load or fetch CPABE Secret Key({})".format(name))
+   sys.exit("Could not load or fetch CPABE Secret Key")
 
-def get_all_keys(kms_url, name, DE_key_location, ORE_key_location, cpabe_pk_location, cpabe_sk_location, auth=None):
-   de = load_fetch_de_key(kms_url,DE_key_location, auth=auth)
-   ore = load_fetch_ore_key(kms_url,ORE_key_location, auth=auth)
-   abe_pk = load_fetch_cpabe_pk(kms_url,cpabe_pk_location, auth=auth)
-   # abe_sk = load_fetch_cpabe_sk(kms_url,name, cpabe_sk_location, auth=auth)
+def get_all_keys(kms_url, kms_access_key, DE_key_location, ORE_key_location, cpabe_pk_location, cpabe_sk_location, auth=None):
+   de = load_fetch_de_key(kms_url,kms_access_key,DE_key_location, auth=auth)
+   ore = load_fetch_ore_key(kms_url,kms_access_key,ORE_key_location, auth=auth)
+   abe_pk = load_fetch_cpabe_pk(kms_url,kms_access_key,cpabe_pk_location, auth=auth)
+   # abe_sk = load_fetch_cpabe_sk(kms_url,kms_access_key, cpabe_sk_location, auth=auth)
 
    return {
             "de": de,
@@ -601,7 +601,7 @@ def handle_client(conn, addr, max_numb_retries_post, DEBUG,other_args, auth=None
          return
 
 
-   post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=True, auth=auth)
+   post_succ = post_record(config_collector["backend_server"]["url"], enc_record, debug=DEBUG, auth=auth)
    if DEBUG:
          print("posted?", post_succ, flush=True)
    for i in range(max_numb_retries_post):
@@ -740,12 +740,13 @@ if __name__ == "__main__":
       try:
          basic_auth_pass = config_collector["basic_auth"]["pass"]
          basic_auth = (basic_auth_user, basic_auth_pass)
-         print("Baic auth: enabled")
+         print("Basic auth: enabled")
       except:
-         exit("Baic auth: no password specified. Exiting.\n")
+         exit("Basic auth: no password specified. Exiting.\n")
    except:
-      print("Baic auth: disabled")
+      print("Basic auth: disabled")
       basic_auth = None
+
 
 
    if basic_auth != None:
@@ -754,9 +755,14 @@ if __name__ == "__main__":
       if not test_auth(config_collector["backend_server"]["url"], basic_auth):
          exit("Test failed: backend basic auth. quiting.")
 
+   if not test_token(config_collector["kms"]["url"],config_collector["kms_access_key"], basic_auth):
+      exit("Test failed: bad kms_access_key, KMS server could also be down.")
+
+
+
    key_arguments = {
                      "kms_url": config_collector["kms"]["url"],
-                     "name": config_collector["name"],
+                     "kms_access_key": config_collector["kms_access_key"],
                      "DE_key_location": config_collector["key_files"]["de"],
                      "ORE_key_location": config_collector["key_files"]["ore"],
                      "cpabe_pk_location": config_collector["key_files"]["cpabe_pub"],
@@ -791,7 +797,7 @@ if __name__ == "__main__":
    SIGINT_COUNT = 0
    signal.signal(signal.SIGINT, signal_handler)
 
-   print("Waiting for new connetions...",flush=True)
+   print("Ready, waiting for new connetions...",flush=True)
 
    with ThreadPoolExecutor(max_workers=enc_worker_threads) as executor:
       while not EXIT_MAINLOOP:

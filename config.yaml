@@ -3,14 +3,16 @@
 ######### Configure these ##########
 ####################################
 
-# name must not contain special characters like spaces, /
-# alpha numeric only, -, _
-name: "Public" 
+# Use /login endpoint@KMS to get kms_access_key
+# Alternatively use provided login script
+# kms_access_key: "kms_access_key" 
+kms_access_key: "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTYyNTExMTAzNiwianRpIjoiN2MwZjhiNjgtZmM4OS00YjNjLTg2NDctMWExN2RhZmE0OThkIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IlVOUlJDIiwibmJmIjoxNjI1MTExMDM2fQ.Gsh9mW8gZI0BRqdwyUNkZVrC2qOOPTB2TpxSLA_pzFk" 
 
-# uncomment the following when usgin basic authentication with the server
+
+# uncomment the following when using basic authentication with the servers (KMS and backend)
 # basic_auth:
-#   user: johndoe
-#   pass: AK3gdyqnJvR5SsRzNn8eF
+#   user: VuRVk3wcgrFhxuuqagV3
+#   pass: 5S86bYXtpumDEbNJpXeBghRPx4J5cxnWjuAp4RcK
 
 
 kms:
@@ -44,6 +46,7 @@ policy:
 
     exact:
       - match: "ipv4"
+      - match: "de"
 
     regex:
       - match: .*src.*
@@ -53,7 +56,7 @@ policy:
   timestamp: # optional but required for time range queries
     # timestamp is automatically encrypted using ORE
     # if any other encryption is desired, use the exact/regex matching mechanisms below
-    # else they will also be encrypted using default
+    # else they will also be encrypted using default CPABE only
     exact:
         - "time"
         - "timestamp"
@@ -89,7 +92,7 @@ policy:
     - match: ".*timestamp.*"
       abe_pol: "itops AND research"
     
-    - match: ".*something.*"
+    - match: ".*ssn.*"
       remove: True
 
 
@@ -99,9 +102,9 @@ policy:
 ####################################
 
 debug: 
-  enabled: False
+  enabled: True
   process_only_one: False
-  show_enc_policy: False
+  show_enc_policy: True
 
 
 ####################################

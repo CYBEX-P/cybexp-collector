@@ -123,7 +123,7 @@ function get_attrib {
       echo "basic auth: disabled"
    fi
 
-   curl $auth_args ${CONF_kms_url}/get/attributes
+   curl $auth_args -H "X-Authorization: Bearer ${CONF_kms_access_key}" ${CONF_kms_url}/get/attributes
    exit 0
 }
 
