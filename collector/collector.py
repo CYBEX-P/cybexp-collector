@@ -5,7 +5,7 @@ sys.path.append("/priv-libs/libs")
 from de import RSADOAEP
 from ORE import *
 from cpabew import CPABEAlg
-from web_client import get_de_key, get_ore_key, get_cpabe_pub_key, get_org_cpabe_secret, post_enc_data, test_auth, test_token
+from web_client import get_de_key, get_ore_key, get_ore_params, get_cpabe_pub_key, get_org_cpabe_secret, post_enc_data, test_auth, test_token
 from priv_common import load_yaml_file
 
 from tqdm import tqdm
@@ -72,7 +72,27 @@ def encrypt_as_de(dat,key):
       except:
          traceback.print_exc()
          return None
-def encrypt_as_timestamp(dat,key, debug=False):
+# def encrypt_as_timestamp(dat,key, debug=False): # deprecated, uses old lib
+#    global DEBUG_POLICY_PARCER
+#    if DEBUG_POLICY_PARCER:
+#       return "ORE_encrypted"
+#    else:
+#       try:
+#          if type(dat) != int:
+#             dat = _str_to_epoch(dat)
+#          if type(dat) == int and dat > 0:
+#             return OREComparable.from_int(dat,key).get_cipher_obj().export()
+#          else:
+#             return None
+#       except KeyboardInterrupt:
+#          raise KeyboardInterrupt
+#       except:
+#          # if debug:
+#          #    traceback.print_exc()
+#          # traceback.print_exc()
+#          return None
+
+def encrypt_as_timestamp(dat,key, params, debug=False):
    global DEBUG_POLICY_PARCER
    if DEBUG_POLICY_PARCER:
       return "ORE_encrypted"
@@ -81,7 +101,8 @@ def encrypt_as_timestamp(dat,key, debug=False):
          if type(dat) != int:
             dat = _str_to_epoch(dat)
          if type(dat) == int and dat > 0:
-            return OREComparable.from_int(dat,key).get_cipher_obj().export()
+            cipher = OREcipher(key, params)
+            return cipher.encrypt(dat)
          else:
             return None
       except KeyboardInterrupt:
@@ -91,6 +112,7 @@ def encrypt_as_timestamp(dat,key, debug=False):
          #    traceback.print_exc()
          # traceback.print_exc()
          return None
+
 
 def encrypt_as_cpabe(dat, policy, pk):
    global DEBUG_POLICY_PARCER
@@ -189,7 +211,7 @@ def create_indexes(enc_record:dict, record_keys:list, record:dict, enc_policy, k
    return index_created
 
 
-def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, key, debug=False):
+def timestamp_match(enc_record:dict, record_keys:list, record:dict, enc_policy, key, enc_params, debug=False):
    # pprint(enc_policy)
 
    record_keys = set(record_keys) # create new object and dont change original
@@ -481,6 +503,28 @@ def load_fetch_ore_key(kms_url,kms_access_key, ORE_key_location, auth=None):
       return 
    sys.exit("Could not load or fetch ORE key")
 
+def load_fetch_ore_params(kms_url,kms_access_key, ORE_params_location, auth=None):
+   try:
+      k = open(ORE_params_location, "rb").read()
+      return
+   except KeyboardInterrupt:
+      raise KeyboardInterrupt
+   except FileNotFoundError:
+      try:
+         ore_key = get_ore_params(kms_url,kms_access_key, auth=auth)
+         if ore_key == None:
+            sys.exit("Could not fetch ORE parameters from KMS server({})".format(kms_url))
+         return ore_key
+      except KeyboardInterrupt:
+         raise KeyboardInterrupt
+      except:
+         # traceback.print_exc()
+         sys.exit("Could not fetch ORE parameters from KMS server({})".format(kms_url))
+      open(ORE_params_location, "wb").write(ore_key)
+      return 
+   sys.exit("Could not load or fetch ORE parameters")
+
+
 def load_fetch_cpabe_pk(kms_url,kms_access_key, cpabe_pk_location, auth=None):
    try:
       k = open(cpabe_pk_location, "rb").read()
@@ -523,15 +567,17 @@ def load_fetch_cpabe_sk(kms_url, kms_access_key, cpabe_sk_location, auth=None):
       return 
    sys.exit("Could not load or fetch CPABE Secret Key")
 
-def get_all_keys(kms_url, kms_access_key, DE_key_location, ORE_key_location, cpabe_pk_location, cpabe_sk_location, auth=None):
+def get_all_keys(kms_url, kms_access_key, DE_key_location, ORE_key_location,ORE_params_location, cpabe_pk_location, cpabe_sk_location, auth=None):
    de = load_fetch_de_key(kms_url,kms_access_key,DE_key_location, auth=auth)
    ore = load_fetch_ore_key(kms_url,kms_access_key,ORE_key_location, auth=auth)
+   ore_params = load_fetch_ore_params(kms_url,kms_access_key,ORE_params_location, auth=auth)
    abe_pk = load_fetch_cpabe_pk(kms_url,kms_access_key,cpabe_pk_location, auth=auth)
    # abe_sk = load_fetch_cpabe_sk(kms_url,kms_access_key, cpabe_sk_location, auth=auth)
 
    return {
             "de": de,
             "ore": ore,
+            "ore_params": ore_params,
             "pk": abe_pk#,
             # "sk": abe_sk
          }
@@ -633,7 +679,11 @@ def encrypt_record(record, keychain, config_collector, SHOW_ENC_POL, DEBUG):
       # master_key_set.update(set(record_keys))
       # print("all keys:",record_keys)
 
-   succ = create_indexes(enc_record, record_keys, record, config_collector['policy']['index'], keychain["de"], debug=SHOW_ENC_POL)
+   try:
+      index_policy = config_collector['policy']['index']
+   except:
+      sys.exit("Index policy not found. Add ['policy']['index'] to configuration.")
+   succ = create_indexes(enc_record, record_keys, record, index_policy , keychain["de"], debug=SHOW_ENC_POL)
    if not succ:
       print("skiping, no index created", flush=True)
       # if ONLY_ONE:
@@ -642,22 +692,37 @@ def encrypt_record(record, keychain, config_collector, SHOW_ENC_POL, DEBUG):
    
    if DEBUG:
       print(record_keys, flush=True)
-   timestamp_match(enc_record, record_keys, record, config_collector['policy']['timestamp'], keychain["ore"], debug=SHOW_ENC_POL)
+   try:
+      timestamp_policy = config_collector['policy']['timestamp']
+      timestamp_match(enc_record, record_keys, record, timestamp_policy , keychain["ore"], keychain["ore_params"], debug=SHOW_ENC_POL)
+   except KeyError:
+      pass
+
+   if DEBUG:
+      print(record_keys, flush=True)
+   try:
+      exact_policy = config_collector['policy']['exact']
+      exact_match(enc_record, record_keys, record, exact_policy, keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
+   except KeyError:
+      pass
    
    if DEBUG:
       print(record_keys, flush=True)
-
-   exact_match(enc_record, record_keys, record, config_collector['policy']['exact'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
-   
-   if DEBUG:
-      print(record_keys, flush=True)
-
-   regex_match(enc_record, record_keys, record, config_collector['policy']['regex'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
+   try:
+      regex_policy = config_collector['policy']['regex']
+      regex_match(enc_record, record_keys, record, regex_policy, keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
+   except KeyError:
+      pass
 
    if DEBUG:
       print(record_keys, flush=True)
 
-   default_match(enc_record, record_keys, record, config_collector['policy']['default'], keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
+   try:
+      default_policy = config_collector['policy']['default']
+   except KeyError:
+      print("WARNING: 'ALL or PUBLIC or DEFAULT' is being used as default fallback as no default policy was provided.")
+      default_policy = "ALL or PUBLIC or DEFAULT"
+   default_match(enc_record, record_keys, record, default_policy, keychain["de"], keychain["pk"], debug=SHOW_ENC_POL)
 
    if DEBUG:
       print(record_keys, flush=True)
@@ -765,6 +830,7 @@ if __name__ == "__main__":
                      "kms_access_key": config_collector["kms_access_key"],
                      "DE_key_location": config_collector["key_files"]["de"],
                      "ORE_key_location": config_collector["key_files"]["ore"],
+                     "ORE_params_location": config_collector["key_files"]["ore_params"],
                      "cpabe_pk_location": config_collector["key_files"]["cpabe_pub"],
                      "cpabe_sk_location": config_collector["key_files"]["cpabe_secret"],
                      "auth": basic_auth
@@ -820,10 +886,7 @@ if __name__ == "__main__":
 
 
 # todo 
-# support missing values in policy parcer
-# if get attribuets, then only fetch valid attributes and display them to user
-# remove de as part of policy "de_encrypt"
-# add debug when removing "SHOW_ENC_POL"
+# remove de as part of policy "de_encrypt"?
 
 
 
