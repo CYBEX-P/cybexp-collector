@@ -102,10 +102,24 @@ policy:
 ####################################
 
 debug: 
-  enabled: True
+  # debug flag for information that does not fall under an specific debug flag below
+  enabled: False
+  # encrypt only one record and quit
   process_only_one: False
-  show_enc_policy: True
-
+  # show encryption policy from the config file
+  print_policy_config: False
+  # print incoming record
+  print_incoming_record: False
+  # show what policy was applied to each field
+  show_enc_policy: False
+  # print fields names left before they are about to be encrytred by a encryption module
+  print_left_keys: False
+  # show resulting encrypted record, ready for posting
+  print_encrypted_record: False
+  # do not post data to backend server
+  do_not_post_data: False
+  # print whether it was posted or not
+  print_was_posted: False
 
 ####################################
 ##### no need to change below ######

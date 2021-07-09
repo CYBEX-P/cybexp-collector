@@ -70,15 +70,15 @@ function run_image {
    echo "config file: $CONFIG_FILE"
    echo "bind: $BIND_IFACE_PORT"
 
-   # CONT_ID=$($DOCKER run -d -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ -it $IMAGE_NAME $other_args)
-   $DOCKER run -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ -it $IMAGE_NAME $other_args
+   # CONT_ID=$($DOCKER run -d -v `realpath $CONFIG_FILE`:/config.yaml:ro -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ -it $IMAGE_NAME $other_args)
+   $DOCKER run -v `realpath $CONFIG_FILE`:/config.yaml:ro -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ -it $IMAGE_NAME $other_args
    # $DOCKER logs -f $CONT_ID
 
    return $?
 }
 function run_shell {
    touch $OUTPUT_FILE
-   $DOCKER run  -v `realpath $CONFIG_FILE`:/config.yaml -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ --entrypoint /bin/bash -it $IMAGE_NAME
+   $DOCKER run  -v `realpath $CONFIG_FILE`:/config.yaml:ro -p ${BIND_IFACE_PORT}:8080 -v $FULL_PATH/secrets:/secrets/ --entrypoint /bin/bash -it $IMAGE_NAME
    CONT_ID=`$DOCKER ps --all | grep $IMAGE_NAME | awk '{print $1}' | head -n 1`
 
 
